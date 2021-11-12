@@ -190,7 +190,7 @@ public class ImagePickerModule extends ReactContextBaseJavaModule implements Act
                 if (options.saveToPhotos) {
                     saveToPublicDirectory(cameraCaptureURI, reactContext, "photo");
                 }
-
+                resizeImage(cameraCaptureURI, reactContext, this.options);
                 onAssetsObtained(Collections.singletonList(fileUri));
                 break;
 

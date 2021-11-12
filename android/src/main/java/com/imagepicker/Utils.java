@@ -11,6 +11,7 @@ import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Matrix;
 import android.hardware.camera2.CameraCharacteristics;
 import android.media.MediaMetadataRetriever;
 import android.net.Uri;
@@ -196,9 +197,9 @@ public class Utils {
         try {
             int[] origDimens = getImageDimensions(uri, context);
 
-            if (!shouldResizeImage(origDimens[0], origDimens[1], options)) {
-                return uri;
-            }
+            // if (!shouldResizeImage(origDimens[0], origDimens[1], options)) {
+            //     return uri;
+            // }
 
             int[] newDimens = getImageDimensBasedOnConstraints(origDimens[0], origDimens[1], options);
 
@@ -207,11 +208,13 @@ public class Utils {
             Bitmap b = BitmapFactory.decodeStream(imageStream);
             b = Bitmap.createScaledBitmap(b, newDimens[0], newDimens[1], true);
             String originalOrientation = getOrientation(uri, context);
+            int orientation = originalOrientation != null ? Integer.parseInt(originalOrientation) :  ExifInterface.ORIENTATION_NORMAL;
+            b = getRotatedImage(b, orientation);
 
             File file = createFile(context, getFileTypeFromMime(mimeType));
             OutputStream os = context.getContentResolver().openOutputStream(Uri.fromFile(file));
             b.compress(getBitmapCompressFormat(mimeType), options.quality, os);
-            setOrientation(file, originalOrientation, context);
+            // setOrientation(file, originalOrientation, context);
             return Uri.fromFile(file);
 
         } catch (Exception e) {
@@ -225,14 +228,27 @@ public class Utils {
         return exifInterface.getAttribute(ExifInterface.TAG_ORIENTATION);
     }
 
-    // ExifInterface.saveAttributes is costly operation so don't set exif for unnecessary orientations
-    static void setOrientation(File file, String orientation, Context context) throws IOException {
-        if (orientation.equals(String.valueOf(ExifInterface.ORIENTATION_NORMAL)) || orientation.equals(String.valueOf(ExifInterface.ORIENTATION_UNDEFINED))) {
-            return;
+   // ExifInterface.saveAttributes is costly operation so don't set exif for unnecessary orientations
+    static Bitmap getRotatedImage(Bitmap bitmap, int orientation) throws IOException {
+        if (orientation == ExifInterface.ORIENTATION_NORMAL) {
+            return bitmap;
         }
-        ExifInterface exifInterface = new ExifInterface(file);
-        exifInterface.setAttribute(ExifInterface.TAG_ORIENTATION, orientation);
-        exifInterface.saveAttributes();
+        int rotationAngle;
+        switch (orientation) {
+            case ExifInterface.ORIENTATION_ROTATE_90: rotationAngle = 90; break;
+            case ExifInterface.ORIENTATION_ROTATE_180: rotationAngle = 180; break;
+            case ExifInterface.ORIENTATION_ROTATE_270: rotationAngle = 270; break;
+            default: rotationAngle = 0;
+        }
+
+        if (rotationAngle == 0) return bitmap;
+
+        int width = bitmap.getWidth();
+        int height = bitmap.getHeight();
+
+        Matrix matrix = new Matrix();
+        matrix.setRotate(rotationAngle, (float) width / 2, (float) height / 2);
+        return Bitmap.createBitmap(bitmap, 0, 0, width, height, matrix, true);
     }
 
     static int[] getImageDimensBasedOnConstraints(int origWidth, int origHeight, Options options) {
